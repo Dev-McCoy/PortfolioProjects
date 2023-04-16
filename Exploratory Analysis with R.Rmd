@@ -1,0 +1,360 @@
+---
+title: "Exploratory Data Analysis in R"
+author: "Ekundayo McCoy Afuape"
+date: "2022-12-31"
+output:
+  html_document:
+    theme: journal
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+    css: "style.css"
+  pdf_document:
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = FALSE, message = FALSE)
+```
+
+```{r warning=FALSE, message=FALSE}
+#Installing the packages required for this project
+library(ggthemes)
+library(tidyverse)
+library(ggplot2)
+library(lubridate)
+library(scales)
+library(stringr)
+library(hrbrthemes)
+```
+
+## **Cool Cats 2019 Sales Review**
+
+In this study, I'll be working with a fictitious dataset for a restaurant called 'Cool Cats' - an online electronic store.
+
+This project is an exploratory data analysis of a fictitious dataset for a restaurant called 'Cool Cats,' which is an online electronic store. The dataset contains information about product orders, such as order date, product type, price, quantity, and purchase address. The aim of this analysis is to gain insights into the sales patterns and trends of the store, identify opportunities for growth, and inform data-driven decision-making processes. The analysis includes data validation, data cleaning, and visualization of the sales data to identify any seasonal trends or patterns. Based on the insights gained, the store can optimize its sales strategies and drive growth.
+
+
+```{r warning=FALSE, message=FALSE}
+#loading the dataset
+all_data <-list.files(path = "C:/Users/afmcc/Desktop/Folders/Data Camp/R/PortfolioProject/Exploratory Analysis with R", pattern = "*.csv") %>% 
+  map_df(~read_csv(.))
+
+#Looking at the dataset's structure
+glimpse(all_data)
+```
+
+### Data Validation
+
+The dataset contains 186,850 rows and 6 columns before cleaning and validation.
+
+```{r}
+#Checking if the variables are in the right format
+summary(all_data)
+```
+A quick inspection of the variables shows that only the product and Purchase Address variables are in the right data format (i.e string data type). Hence, I will convert the other variables into the right format before further validation
+
+```{r}
+#Converting the Order Date from character to datetime format and stored as a new variable new_order_date
+all_data$new_order_date <- as.POSIXct(all_data$`Order Date`, format="%m/%d/%y%H:%M") #format time
+
+#Converting the 'Price Each' variable from character to numeric
+all_data$`Price Each` <- as.numeric(all_data$`Price Each`)
+
+#Converting the 'Quantity Ordered' variable from character to numeric
+all_data$`Quantity Ordered` <- as.numeric(all_data$`Quantity Ordered`)
+
+#Converting the 'Order ID' variable from character to numeric
+all_data$`Order ID` <- as.numeric(all_data$`Order ID`)
+
+#Converting 'Product' variable from character to factor
+all_data$Product <- as.factor(all_data$Product)
+levels(all_data$Product)
+
+```
+
+```{r}
+summary(all_data)
+```
+
+
+```{r}
+#Checking the number of missing Purchase Address values 
+sum(is.na(all_data$`Purchase Address`))
+
+#Checking the number of missing Purchase Address values 
+sum(is.na(all_data$`Order Date`))
+
+
+```
+
+After converting the variables into the right format, it is easier to get further information about individual variable. A quick summary of the data shows that:
+
+* Order ID: has 900 missing values
+* Product: has 545 missing values, 19 distinct products
+* Quantity Ordered: has 900 missing values
+* Price Each: has 900 missing values
+* Purchase Address: has 545 missing values
+* Order Date: has 545 missing values
+
+Next, I will drop NAs before further analysis
+
+```{r}
+#Drop rows with NAs
+all_data <- na.omit(all_data)
+glimpse(all_data)
+```
+After the data validation, the dataset contains 185947 rows and 7 columns
+
+### Can we find any seasonal trends or patterns in the sales data?
+
+December had the highest sales, with $4,613,443, followed by October with $3,736,727. The sales figures for the other months were as follows: April ($3,390,670), November ($3,199,603), and May ($3,152,607)
+
+Based on this information, Cool Cats Online store can draw several insights to inform its strategies. Here are a few insights that could be useful:
+
+Seasonality: The sales data shows that December and October had the highest sales, which could indicate that the holiday season and year-end promotions play a significant role in driving sales for an online electronic store. Thus, the store could prepare for the holiday season and run promotional campaigns to boost sales during that time.
+
+Sales trends: The sales data also shows that sales tend to be higher in the later months of the year (October, November, December), and lower in the earlier months such as April, May. This trend could be due to factors such as consumer behavior, product launches, or market trends. Understanding these trends can help the store plan its inventory and pricing strategies accordingly.
+
+Opportunities for growth: While December had the highest sales, the data shows that there is potential for growth in other months, such as April and May. The store could focus on increasing sales during these months by running promotions, launching new products, or improving its marketing strategies.
+
+Data-driven decision making: Finally, the store can use this sales data to inform its decision-making processes. For example, the store could use the data to set sales targets, allocate resources, and measure the effectiveness of its marketing campaigns.
+
+Overall, the sales data provides valuable insights that an online electronic store can use to optimize its sales strategies and drive growth.
+
+```{r}
+#Adding a Month Column
+all_data$order_month <- month(all_data$new_order_date)
+all_data$order_month <- as.factor(all_data$order_month)
+
+
+#
+all_data$month_name <- recode_factor(all_data$order_month, 
+                                     "1" = "January", 
+                                     "2" = "February",
+                                     "3" = "March",
+                                     "4" = "April",
+                                     "5" = "May",
+                                     "6" = "June",
+                                     "7" = "July",
+                                     "8" = "August",
+                                     "9" = "September",
+                                     "10" = "October",
+                                     "11" = "November",
+                                     "12" = "December")
+
+#Adding a column for how much an order costs
+all_data$order_amount <- all_data$`Price Each` * all_data$`Quantity Ordered`
+
+#Calculating the total sales per month to identify the best month for sales
+sales_per_month <- all_data %>% 
+              group_by(month_name) %>% 
+              summarise(total_sales = sum(order_amount)) %>% 
+              arrange(desc(total_sales))
+head(sales_per_month,5)
+```
+
+
+```{r}
+#Visualizing the best month for sales
+sales_per_month_viz <- ggplot(sales_per_month, 
+                    aes(x=as.factor(month_name), y=total_sales))+
+                    geom_col()+
+                    labs(title="Total Sales Per Month in 2019", x="Month", y="Sales ($)")+
+                    scale_y_continuous(labels = label_comma())+
+                    theme(panel.grid.major.x = element_blank(),
+                          panel.grid.minor.x = element_blank(),
+                          plot.title = element_text(hjust = 0.5),
+                          axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+          
+                    
+sales_per_month_viz
+```
+
+
+### In which cities were the most orders placed?
+
+Based on the sales data for the different cities, we can draw several insights to inform business strategies. Here are a few insights that could be useful:
+
+Regional sales trends: The sales data shows that San Francisco, CA had the highest sales, followed by Los Angeles, CA and New York City, NY. This information could indicate that these cities have a high demand for electronic products, and the store could focus its marketing efforts in these regions to increase sales. The store could also study the reasons behind this trend, such as local economic conditions, consumer preferences, and competition, to inform its strategies.
+
+Opportunities for growth: While San Francisco, CA had the highest sales, the sales data also shows that there is potential for growth in other cities, such as Boston, MA and Atlanta, GA. The store could focus on increasing sales in these cities by offering targeted promotions, launching new products, or improving its marketing strategies.
+
+Product preferences: The store could also analyze the sales data to understand which products are more popular in different cities. This information could help the store tailor its product offerings to meet the needs and preferences of customers in each city.
+
+```{r}
+#Separating the Purchase Address into Street, City and Postal Code
+all_data <- all_data %>% separate(`Purchase Address`, c("Street", "City", "Postal Code"), ", ")
+
+#Separating the postal code into its components to extract the city code
+all_data <- all_data %>% separate(`Postal Code` ,c("City Code", "Postal Code"), " ")
+
+#Concatenating the city name and code to create a new variable called city
+all_data$city <- paste(all_data$City, all_data$`City Code`, sep = ", ")
+```
+
+
+```{r}
+#Finding the city where the highest number of orders were made
+best_buying_cities <- all_data %>% 
+                       group_by(city) %>% 
+                       summarise(total_amount_bought = sum(order_amount)) %>% 
+                       arrange(desc(total_amount_bought))
+head(best_buying_cities,5)
+```
+
+
+
+```{r}
+#Creating a visualization for the cities with the most orders
+best_buying_cities_viz <- ggplot(best_buying_cities, aes(x=reorder(as.factor(city),-total_amount_bought), y=total_amount_bought))+
+                    geom_col(width = 0.6)+
+                    labs(title="Total Sales per City in 2019",x="City", y="Sales ($)")+
+                    scale_y_continuous(labels = label_comma())+
+                    theme(panel.grid.major.x = element_blank(),
+                          panel.grid.minor.x = element_blank(),
+                          plot.title = element_text(hjust = 0.5, face = "bold"),
+                          axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
+                          axis.title.y=element_text(colour="#696969", face = "bold"),
+                          axis.title.x=element_text(colour="#696969", face = "bold"))
+                  
+                    
+best_buying_cities_viz
+```
+
+### Are there any promotions we could leverage
+Most orders were placed between 11am-1pm and 6pm-8pm. This finding can be used to plan promotional strategies to drive sales during these times. Here are a few potential promotional ideas:
+
+Lunchtime deals: Since most orders were placed between 11am-1pm, the store could offer lunchtime deals to encourage customers to make purchases during this time. For example, the store could offer discounts on selected products or a free gift with every purchase during this time.
+
+Happy hour promotions: Given that many orders were placed between 6pm-8pm, the store could leverage this trend by offering happy hour promotions, such as discounts on selected products, free shipping, or a limited-time flash sale.
+
+Time-limited offers: To create a sense of urgency and encourage customers to make purchases during these peak hours, the store could offer time-limited promotions that expire at the end of the lunchtime or happy hour periods.
+
+Social media campaigns: The store could also use social media channels to promote these lunchtime and happy hour deals, targeting customers who are most likely to be online during these times.
+
+By leveraging this data and planning targeted promotional strategies, the store can drive sales during peak hours and increase revenue.
+
+```{r warning=FALSE}
+#Extracting the hour from the order date and storing as a new variable
+all_data$order_hour <- hour(all_data$new_order_date)
+
+#Converting the order hour to an integer
+all_data$order_hour <- as.integer(all_data$order_hour)
+
+#Finding the hour where most products were purchases
+best_time_for_advert <- ggplot(all_data,aes(x=order_hour)) +
+                  geom_histogram( binwidth=1, fill="#696969", color="#e9ecef", alpha=0.9) +
+                  theme(panel.grid.major.x = element_blank(),
+                          panel.grid.minor.x = element_blank(),
+                          plot.title = element_text(hjust = 0.5))+
+                  theme(plot.title = element_text(face = "bold"),
+                        axis.title.x=element_text(colour="#696969", face = "bold"),
+                        axis.title.y=element_text(colour="#696969", face = "bold"))+
+                  scale_x_continuous(breaks=0:23)+
+                  labs(title = "Number of Order by Hour", x="Hour", y="Count/Order Made")
+
+best_time_for_advert
+```
+
+### What products are typically bought together?
+
+The iPhone and Lightning Charging Cable	are the products most bought together. 
+
+Based on the finding that the iPhone and Lightning Charging Cable are the products most commonly bought together, it could suggest that customers who purchase an iPhone may also need a charging cable to go along with it. This finding could be used by the store to inform their marketing and sales strategies. For example, the store could create a bundle deal or a promotion that offers a discount to customers who purchase both an iPhone and a Lightning Charging Cable together.
+
+Moreover, the store could also use this information to improve their inventory management by ensuring that they have enough stock of both products at all times. They could also display these products together in-store or online to make it easier for customers to find and purchase them as a bundle.
+
+It's important to note that this finding is based solely on the data provided, and further analysis may be required to confirm these insights and understand the underlying reasons for this pattern. It's also crucial to consider other factors, such as the time frame and location of the data collected, as consumer behavior and preferences can vary based on these factors
+
+```{r}
+#Counting duplicated orders to identify order ID consisting of more than 1 product
+dup_order <- all_data %>%
+count(`Order ID`) %>% 
+filter(n>1)
+
+#Creating a subset data of orders having more than 1 product from the original dataset
+grouped_order <- all_data %>% filter(`Order ID` %in% dup_order$`Order ID`)
+grouped_order
+```
+
+
+```{r}
+#Concatenating name of products in each order and storing as a new variable
+grouped_data_two <- grouped_order %>% 
+     group_by(`Order ID`) %>% 
+     mutate(product_pair = paste0(Product, collapse = ", ")) 
+head(grouped_data_two)
+
+#Selecting distinct order_Id
+distinct_order<- distinct(grouped_data_two,`Order ID`, .keep_all = TRUE)
+distinct_order
+```
+
+```{r}
+grouped_data_two %>% group_by(product_pair) %>% count(product_pair) %>% arrange(desc(n))
+```
+
+
+
+```{r}
+most_bought_pairs <- distinct_order %>% group_by(product_pair) %>% count(product_pair) %>% arrange(desc(n))
+head(most_bought_pairs,5)
+```
+
+
+### What are the three most ordered and least ordered products in the year 2019? Is this the same across cities were the most orders were placed?
+
+The most ordered products from the store are the AAA Batteries (4-pack), AA Batteries (4-pack), USB-C Charging Cable and the least ordered products are Vareebadd Phone, LG Washing Machine and LG Dryer. This pattern is the same across Los Angeles, New York and San Francisco. 
+
+Based on the finding that the most ordered products are AAA Batteries (4-pack), AA Batteries (4-pack), and USB-C Charging Cable, it could suggest that customers tend to buy small and affordable products that are used in everyday life, such as batteries and charging cables. These products may also be essential for the operation of other devices, such as remote controls and mobile phones, which could explain their high demand.
+
+On the other hand, the least ordered products are the Vareebadd Phone, LG Washing Machine, and LG Dryer. This could imply that these products are either not popular among customers, too expensive or that they are not essentials. It's also possible that there are other popular brands or models of phones and washing machines that customers prefer over these brands.
+
+
+```{r}
+#Identifying the most ordered products in 2019
+most_ordered_product <- all_data %>% 
+                        group_by(Product)%>% 
+                        summarise(quantity_ordered = sum(`Quantity Ordered`)) %>% 
+                        arrange(desc(quantity_ordered))
+
+head(most_ordered_product,3)
+tail(most_ordered_product,3)
+```
+
+```{r}
+#Visualizing the most ordered and least ordered products in the year 2019
+most_ordered_product_viz <- ggplot(
+                            data=most_ordered_product, 
+                            aes(x=reorder(as.factor(Product),-quantity_ordered),y=quantity_ordered))+
+                            geom_col()+
+                            theme(panel.grid.major.x = element_blank(),
+                          panel.grid.minor.x = element_blank(),
+                          plot.title = element_text(hjust = 0.5),
+                          axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+                          labs(title = "Total Orders by Product in 2019", x="Product",y="Quantity Ordered")
+ 
+most_ordered_product_viz              
+```
+
+
+```{r fig.width=6, fig.height=7}
+#To visualize the order pattern of the products across the cities with most orders
+top_cities <- subset(
+  all_data, city %in% c("San Francisco, CA", "Los Angeles, CA", "New York City, NY"))
+
+most_ordered_product_viz_by_city <- ggplot(
+                            top_cities, 
+                            aes(x=(as.factor(Product)),y=`Quantity Ordered`))+
+                            geom_col(show.legend = FALSE)+
+                            theme(panel.grid.major.x = element_blank(),
+                          panel.grid.minor.x = element_blank(),
+                          plot.title = element_text(hjust = 0.5),
+                          axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+                          labs(title = "Total Orders by Product in 2019", x="Product",y="Quantity Ordered")+
+                          facet_grid(rows = vars(City))
+most_ordered_product_viz_by_city
+
+```
+
